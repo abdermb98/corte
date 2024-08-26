@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheets Data Entry</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        form, .update-form {
+            margin-bottom: 20px;
+        }
+        input, textarea {
+            display: block;
+            margin-bottom: 10px;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #004d40;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #003d33;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #004d40;
+            color: white;
+        }
+        .delete-button, .update-button {
+            background-color: #e57373;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .delete-button:hover, .update-button:hover {
+            background-color: #c62828;
+        }
+        /* Modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+            box-sizing: border-box;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Responsive styles */
+        @media (max-width: 600px) {
+            table {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 8px;
+            }
+            input, textarea {
+                padding: 6px;
+                font-size: 14px;
+            }
+            button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+
+        /* CSS to set a fixed width for table columns */
+        th, td {
+            width: 50px; /* Adjust this value to set the desired column width */
+        }
+    </style>
+</head>
+<body>
+    <h1>Google Sheets Data Entry</h1>
+
+    <form id="dataForm">
+        <input type="date" id="dat1" placeholder="DATE" required>
+        <input type="text" id="culture" placeholder="CULTURE" required>
+        <input type="text" id="parcelle" placeholder="PARCELLE" required>
+        <input type="text" id="fini" placeholder="FINI/BRUT" required>
+        <input type="number" id="kg" placeholder="TOTAL KG" required>
+        <textarea id="message" placeholder="OBSERVATION" required></textarea>
+        <button type="submit">Submit</button>
+    </form>
+
+    <h2>Submitted Data</h2>
+    <table id="dataTable">
+        <thead>
+            <tr id="tableHeaders"></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <!-- Modal for updating rows -->
+    <div id="updateModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Update Row</h3>
+            <input type="date" id="updateDat1">
+            <input type="text" id="updateCulture">
+            <input type="text" id="updateParcelle">
+            <input type="text" id="updateFini">
+            <input type="number" id="updateKg">
+            <textarea id="updateMessage"></textarea>
+            <button id="updateButton">Update</button>
+        </div>
+    </div>
+
+    <script>
+        const scriptURL = 'https://script.google.com/macros/s/AKfycbzAyDnnrYh2i5BOgTDlLY4SfBs97IyfNd-_RibCLYG1JaUyvxyaOH6cS_PUoQPQG3Ls7w/exec';
+
+        // إرسال بيانات النموذج إلى Google Sheets
+        document.getElementById('dataForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const formData = {
+                dat1: document.getElementById('dat1').value,
+                culture: document.getElementById('culture').value,
+                parcelle: document.getElementById('parcelle').value,
+                fini: document.getElementById('fini').value,
+                kg: document.getElementById('kg').value,
+                message: document.getElementById('message').value
+            };
+
+            fetch(scriptURL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'add', data: formData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateTable(data);
+                document.getElementById('dataForm').reset();
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        let currentRowIndex;
+
+        function updateTable(data) {
+            const headers = data.headers;
+            const rows = data.rows;
+
+            const tableHeaders = document.getElementById('tableHeaders');
+            const tableBody = document.getElementById('tableBody');
+
+            tableHeaders.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            // إضافة رؤوس الأعمدة إلى الجدول
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                tableHeaders.appendChild(th);
+            });
+            const actionTh = document.createElement('th');
+            actionTh.textContent = 'Actions';
+            tableHeaders.appendChild(actionTh);
+
+            // إضافة الصفوف إلى الجدول
+            rows.forEach((row, rowIndex) => {
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    tr.appendChild(td);
+                });
+                const actionTd = document.createElement('td');
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'delete-button';
+                deleteButton.onclick = () => deleteRow(rowIndex + 2); // +2 لأن الصفوف تبدأ من 2 في Google Sheets
+                
+                const updateButton = document.createElement('button');
+                updateButton.textContent = 'Update';
+                updateButton.className = 'update-button';
+                updateButton.onclick = () => {
+                    currentRowIndex = rowIndex + 2; // حفظ رقم الصف الحالي
+                    showUpdateForm(row);
+                };
+                
+                actionTd.appendChild(deleteButton);
+                actionTd.appendChild(updateButton);
+                tr.appendChild(actionTd);
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function deleteRow(rowIndex) {
+            fetch(scriptURL, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'delete', rowIndex: rowIndex })
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateTable(data);
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function showUpdateForm(rowData) {
+            document.getElementById('updateDat1').value = rowData[0];
+            document.getElementById('updateCulture').value = rowData[1];
+            document.getElementById('updateParcelle').value = rowData[2];
+            document.getElementById('updateFini').value = rowData[3];
+            document.getElementById('updateKg').value = rowData[4];
+            document.getElementById('updateMessage').value = rowData[5];
+            document.getElementById('updateModal').style.display = 'flex'; // عرض الـ modal
+        }
+
+        document.getElementById('updateButton').addEventListener('click', function() {
+            const updatedData = {
+                action: 'update',
+                rowIndex: currentRowIndex,
+                data: [
+                    document.getElementById('updateDat1').value,
+                    document.getElementById('updateCulture').value,
+                    document.getElementById('updateParcelle').value,
+                    document.getElementById('updateFini').value,
+                    document.getElementById('updateKg').value,
+                    document.getElementById('updateMessage').value
+                ]
+            };
+
+            fetch(scriptURL, {
+                method: 'POST',
+                body: JSON.stringify(updatedData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateTable(data);
+                document.getElementById('updateModal').style.display = 'none'; // إغلاق الـ modal
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        document.querySelector('.close').addEventListener('click', function() {
+            document.getElementById('updateModal').style.display = 'none'; // إغلاق الـ modal عند الضغط على الزر
+        });
+
+        // جلب البيانات وعرضها عند تحميل الصفحة
+        window.onload = function() {
+            fetch(scriptURL)
+                .then(response => response.json())
+                .then(data => {
+                    updateTable(data);
+                })
+                .catch(error => console.error('Error:', error));
+        };
+    </script>
+</body>
+</html>
